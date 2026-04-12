@@ -1,17 +1,21 @@
-<div align="center">
+# 🧠 Chester Editor AI — Visual AI Assistant Studio
 
-# ✨ Chester Editor Image
-### *AI-Powered Visual Editing Assistant*
+> *"Detect, Remove, Reconstruct — Seolah objek tersebut tidak pernah ada."*
 
-<img src="https://img.shields.io/badge/AI-Image%20Editing-blueviolet?style=for-the-badge&logo=openai">
-<img src="https://img.shields.io/badge/JavaScript-Full%20App-yellow?style=for-the-badge&logo=javascript">
-<img src="https://img.shields.io/badge/TailwindCSS-Modern%20UI-38bdf8?style=for-the-badge&logo=tailwindcss">
-<img src="https://img.shields.io/badge/Status-25%2B%20Features-success?style=for-the-badge">
+**Chester Editor AI** adalah asisten visual berbasis kecerdasan buatan yang mampu mendeteksi, menghapus, dan merekonstruksi gangguan visual seperti objek, orang, atau latar belakang berantakan secara **instan** dengan hasil **mulus & akurat**.  
+Dikembangkan sebagai proyek mata kuliah **Kecerdasan Buatan**.
 
-### 🧠 Smart Visual Assistant for Seamless AI Image Reconstruction
-*Built for Artificial Intelligence Course Project*
+![GitHub repo size](https://img.shields.io/github/repo-size/chesterlab/chester-ai-studio?style=flat-square)
+![GitHub stars](https://img.shields.io/github/stars/chesterlab/chester-ai-studio?style=social)
+![Made with JavaScript](https://img.shields.io/badge/Made%20with-JavaScript-yellow?style=flat-square)
+![Powered by AI](https://img.shields.io/badge/Powered%20by-AI-blue?style=flat-square)
 
-</div>
+---
+
+## ✨ Demo Preview
+
+> 🎥 *Tampilkan GIF demo di sini nanti*
+
 
 ---
 
