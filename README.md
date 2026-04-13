@@ -39,7 +39,7 @@ Dengan bantuan AI, hasil akhir dibuat **halus, realistis, dan natural seolah ele
 # 🌟 Core Features
 ## 🎯 22 Fitur Unggulan Chester Editor Image
 
-### 🖼️ Image Processing & AI Core
+### 🖼️ Image Processing & AI Core ( Selesai : 6 - 10 April 2026 )
 - ✅ **1. Upload Image + Background Remove + AI Mode**  
   Upload gambar dengan sistem drag-and-drop modern, lalu gunakan AI model untuk proses remove background dan optimasi kualitas.
 
@@ -55,29 +55,28 @@ Dengan bantuan AI, hasil akhir dibuat **halus, realistis, dan natural seolah ele
 - ✅ **5. Export PNG / JPG / JPEG / WEBP**  
   Mendukung export ke berbagai format gambar populer.
 
-- ⚠️ **6. Expand Canvas / Lebarkan Gambar**  
-  Memperluas area canvas untuk memberi ruang tambahan pada desain.  
-  *Status: masih dalam tahap optimasi.*
+- ✅ **6. Expand Canvas / Lebarkan Gambar**  
+  Memperluas area canvas untuk memberi ruang tambahan pada desain. 
 
 ---
 
-### 🎯 Smart Selection & Object Editing
+### 🎯 Smart Selection & Object Editing ( Selesai : 6 - 10 April 2026 )
 - ✅ **7. Auto Select & Object Removal**  
   AI secara otomatis mendeteksi objek hanya dengan satu klik, lalu objek dapat langsung dihapus.
 
-- ✅ **8. Object Delete + Undo / Redo System**  
+- ✅ **8.  Undo / Redo System**  
   Setiap perubahan tersimpan dalam history stack sehingga pengguna bebas membatalkan atau mengulang proses editing.
 
 - ✅ **9. Add Elements / Stickers**  
   Menambahkan elemen visual seperti stiker, icon, atau ornamen untuk desain kreatif.
 
-- ⚠️ **10. Merge Multiple Images**  
+- ✅ **10. Merge Multiple Images**  
   Fitur penggabungan beberapa gambar ke dalam satu canvas.  
   *Status: masih tahap pengembangan.*
 
 ---
 
-### 🎨 Quality Enhancement & Layout
+### 🎨 Quality Enhancement & Layout ( selesai : 07 - 12 April 2026 )
 - ✅ **11. Resolution Upgrade / Upscale**  
   Menampilkan serta meningkatkan resolusi gambar menjadi kualitas lebih tinggi (HD / Ultra HD).
 
@@ -87,17 +86,17 @@ Dengan bantuan AI, hasil akhir dibuat **halus, realistis, dan natural seolah ele
 - ✅ **13. Canva-like Positioning System**  
   Sistem drag, resize, layer movement, dan penempatan elemen yang intuitif seperti Canva.
 
-- ⚠️ **14. Position Lock Feature**  
+- ✅ **14. Position Lock Feature**  
   Mengunci posisi objek agar tidak bergeser saat proses editing.  
-  *Status: masih perlu penyempurnaan.*
+  
 
-- ⚠️ **15. Image Animation**  
+- ✅ **15. Image Animation**  
   Memberikan animasi ringan pada elemen gambar agar lebih hidup.  
-  *Status: masih eksplorasi integrasi dengan fitur video.*
+
 
 ---
 
-### 🪄 Advanced Editing Tools
+### 🪄 Advanced Editing Tools ( selesai : 07 - 12 April 2026 )
 - ✅ **16. Flip & Rotate**  
   Membalik gambar horizontal/vertical dan rotasi sesuai kebutuhan desain.
 
