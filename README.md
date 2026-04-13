@@ -90,7 +90,8 @@ Selesai : 01 April 2026
 
 - ✅ **7. Zoom** <br>
 Ini adalah fitur untuk mengatur besar kecilnya preview ukuran gambar.
-Selesai : 01 April 2026
+
+<br>Selesai : 01 April 2026
 
 - ✅ **8. Kunci Posisi** <br>
 Ini adalah fitur yang memungkinkan gambar kita tidak bisa di edit untuk menghindari kesalahan / kelalaian.
@@ -146,8 +147,8 @@ Selesai : 10 April 2026
 - ✅ **15. Animasi PPT**  <br>
 Ini adalah fitur yang memungkinkan kamu menjadikan foto menjadi video dengan beberapa efek transisi 
 pada umumnya.
-Selesai : 11 April 2026
 
+Selesai : 11 April 2026
 
 - ✅ **16. AI Prompt edit** <br>
 Ini adalah fitur yang memungkinkan pengguna untuk mengedit gambar menggunakan perintah teks (prompt).
