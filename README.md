@@ -13,13 +13,13 @@ Deskripsi :
 seperti objek, orang, atau latar belakang yang berantakan secara instan dengan hasil yang mulus dan akurat seolah elemen tersebut tidak pernah ada
 sebelumnya.
 
-Sistem ini mampu menghilangkan gangguan visual seperti:
-1). objek yang tidak diinginkan orang di background
-2). latar belakang berantakan
-3). noise visual
-4). tepi objek kasar
-5). shadow yang hilang setelah editing
-6). dan masih banyak lagi
+Sistem ini mampu menghilangkan gangguan visual seperti:  <br>
+1). objek yang tidak diinginkan orang di background  <br>
+2). latar belakang berantakan  <br>
+3). noise visual  <br>
+4). tepi objek kasar  <br>
+5). shadow yang hilang setelah editing  <br>
+6). dan masih banyak lagi  <br>
 
 Dengan bantuan AI, hasil akhir dibuat **halus, realistis, dan natural seolah elemen tersebut tidak pernah ada sebelumnya**.
 
@@ -39,7 +39,7 @@ yang backgroundnya ingin kamu hilangkan, kemudian pilih mode AI yang kamu ingink
 tombol Remove Background, kemudian biarkan AI yang berekja untuk menghilangkan background dengan 
 hasil yang mulus dan akurat.
 
-Ada 2 jenis mode AI yang bisa kamu pilih, yaitu :
+Ada 2 jenis mode AI yang bisa kamu pilih, yaitu :  <br>
 1). **AI Mode 1 : General Object (HD)** <br>
 2). **AI Mode 2 : Fast Mobile (Low Res)**
 
@@ -55,12 +55,12 @@ Selesai : 10 April 2026
 
 
 - ✅ **3. AI Beauty Retouch**
-Fitur ini adalah tools yang memungkinkan kamu untuk dapat :
-1). Memperhalus kulit
-2). Mencerahkan gambar
-3). Meningkatkan kontras
-4). Menambah tingkat saturasi
-5). dan meningkatkan ketajaman
+Fitur ini adalah tools yang memungkinkan kamu untuk dapat :  <br>
+1). Memperhalus kulit  <br>
+2). Mencerahkan gambar  <br>
+3). Meningkatkan kontras  <br>
+4). Menambah tingkat saturasi  <br>
+5). dan meningkatkan ketajaman  <br>
 
 Kamu cukup geser atur fitur yang diinginkan, kemudian klik tombol Apply Beauty Retouch.
 Selamat! Kamu telah berhasil mempercantik gambar kamu dengan hasil yang kamu inginkan.
