@@ -91,14 +91,14 @@ Selesai : 01 April 2026
 - ✅ **7. Zoom** <br>
 Ini adalah fitur untuk mengatur besar kecilnya preview ukuran gambar.
 
-<br>Selesai : 01 April 2026
+<br>Selesai : 19 April 2026
 
 - ✅ **8. Kunci Posisi** <br>
 Ini adalah fitur yang memungkinkan gambar kita tidak bisa di edit untuk menghindari kesalahan / kelalaian.
 Untuk mengeditnya kembali, kamu hanya perlu meng klik tombol itu lagi, dan... 
 Selamat! Kamu sudah bisa mengedit gambar yang kamu inginkan lagi
 
-Selesai : 05 April 2026
+Selesai : 19 April 2026
 
 - ✅ **9. Undo / Redo**  <br>
 Ini adalah fitur yang memungkinkan kamu kembali ke 1 titik sebelum gambar kamu diubah,
@@ -127,7 +127,7 @@ Selesai : 07 April 2026
 Gambar kamu terlalu lebar? Fitur ini merupakan solusi untuk membuat gambar kamu yang terlalu lebar (renggang) 
 bisa diperbaiki
 
-Selesai : 03 April 2026
+Selesai : 19 April 2026
 
 
 - ✅ **13. Tambah Sticker** <br>
@@ -142,13 +142,13 @@ stikernya kurang menarik? Tenang, kamu bisa atur gambar lain untuk bisa hadir di
 Caranya, klik button pilih file, pilih gambar yang ingin kamu mau dari local storagemu, lalu sesuaikan penempatan, ukuran,
 dan sebagainya di foto utama yang telah kamu upload. Tadaaa, kamu telah berhasil menggabungkan gambar yang kamu inginkan.
 
-Selesai : 10 April 2026
+Selesai : 19 April 2026
 
 - ✅ **15. Animasi PPT**  <br>
 Ini adalah fitur yang memungkinkan kamu menjadikan foto menjadi video dengan beberapa efek transisi 
 pada umumnya.
 
-Selesai : 11 April 2026
+Selesai : 19 April 2026
 
 - ✅ **16. AI Prompt edit** <br>
 Ini adalah fitur yang memungkinkan pengguna untuk mengedit gambar menggunakan perintah teks (prompt).
