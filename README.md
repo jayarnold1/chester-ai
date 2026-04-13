@@ -1,9 +1,9 @@
 
 Nama Anggota Kelompok : Chester (Kelompok 8)
  
-1). Rolan Wijaya (241111821) 
-2). Jay Arnold Lingga (241110730) 
-3). Evenly Chelsea Wahid (241110173) 
+1). Rolan Wijaya (241111821)<br> 
+2). Jay Arnold Lingga (241110730) <br>
+3). Evenly Chelsea Wahid (241110173) <br> 
 
 
 ## 📌 About The Project
@@ -40,7 +40,7 @@ tombol Remove Background, kemudian biarkan AI yang berekja untuk menghilangkan b
 hasil yang mulus dan akurat.
 
 Ada 2 jenis mode AI yang bisa kamu pilih, yaitu :
-1). **AI Mode 1 : General Object (HD)**
+1). **AI Mode 1 : General Object (HD)** <br>
 2). **AI Mode 2 : Fast Mobile (Low Res)**
 
 Selesai : 01 April 2026
