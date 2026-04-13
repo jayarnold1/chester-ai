@@ -72,7 +72,6 @@ Dengan bantuan AI, hasil akhir dibuat **halus, realistis, dan natural seolah ele
 
 - ✅ **10. Merge Multiple Images**  
   Fitur penggabungan beberapa gambar ke dalam satu canvas.  
-  *Status: masih tahap pengembangan.*
 
 ---
 
