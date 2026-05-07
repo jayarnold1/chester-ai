@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Logo } from "./Logo";
 
 type Sticker = { id: string; emoji?: string; src?: string; x: number; y: number; size: number };
 
@@ -13,6 +12,7 @@ export function ChesterStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskRef = useRef<HTMLCanvasElement>(null);
   const stickerLayerRef = useRef<HTMLDivElement>(null);
+  const cropOverlayRef = useRef<HTMLCanvasElement>(null);
   const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
   const [hasImage, setHasImage] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,9 +53,6 @@ export function ChesterStudio() {
   // 19 AI prompt edit
   const [aiPrompt, setAiPrompt] = useState("");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
-  // 20 brush
-  const [brushOn, setBrushOn] = useState(false);
-  const [brushSize, setBrushSize] = useState(20);
   // 21 auto select
   const [autoSelectOn, setAutoSelectOn] = useState(false);
   const [autoPoints, setAutoPoints] = useState<{ x: number; y: number }[]>([]);
@@ -68,7 +65,18 @@ export function ChesterStudio() {
   const [flipV, setFlipV] = useState(false);
   const [rotate, setRotate] = useState(0);
   const [bgRemoved, setBgRemoved] = useState(false);
-  const [colorFilter, setColorFilter] = useState(0); // hue rotate
+  const [colorFilter, setColorFilter] = useState(0);
+
+  // ---- Crop states ----
+  const [cropMode, setCropMode] = useState(false);
+  const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const cropDragRef = useRef<{
+    active: boolean;
+    type: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null;
+    startX: number;
+    startY: number;
+    initialRect: { x: number; y: number; w: number; h: number };
+  }>({ active: false, type: null, startX: 0, startY: 0, initialRect: { x: 0, y: 0, w: 0, h: 0 } });
 
   // ---- Drawing pipeline ----
   function pushHistory() {
@@ -96,7 +104,7 @@ export function ChesterStudio() {
     ctx.save();
     ctx.clearRect(0, 0, w, h);
 
-    // background
+    // Hanya gambar background jika bgRemoved true
     if (bgRemoved) {
       if (bgMode === "color") {
         ctx.fillStyle = bgColor;
@@ -131,15 +139,6 @@ export function ChesterStudio() {
 
     ctx.drawImage(imgEl, -w / 2, -h / 2, w, h);
     ctx.restore();
-
-    // BG removal "fake": make near-white pixels transparent
-    if (bgRemoved) {
-      const id = ctx.getImageData(0, 0, w, h);
-      const d = id.data;
-      // Only attempt if there's no bg drawn behind (color/image case is already drawn underneath)
-      // We'll skip pixel removal to avoid destroying drawn bg; the underlying bg color/image is the visible result.
-      void d;
-    }
   }
 
   useEffect(() => { if (imgEl) draw(); }, [imgEl, brightness, contrast, saturation, skin, sharpness, smooth, shadow, quality, flipH, flipV, rotate, bgMode, bgColor, bgImage, bgRemoved, colorFilter]);
@@ -168,7 +167,6 @@ export function ChesterStudio() {
   }
 
   // ---- Feature actions ----
-  // 2. Text-to-image (placeholder via picsum seeded)
   async function generateAIImage() {
     if (!prompt.trim()) return;
     setLoading(true); setInfo("Generating AI image...");
@@ -184,13 +182,12 @@ export function ChesterStudio() {
     i.onerror = () => { setLoading(false); setInfo("Gagal generate."); };
     i.src = url;
   }
-  // 3. Remove BG — uses remove.bg API
+
   async function removeBG() {
     if (!imgEl) return;
     setLoading(true);
-    setInfo(" Sedang menghapus background... ditunggu, yaa!");
+    setInfo("Menghapus background via remove.bg...");
     try {
-      // Render current canvas to a blob so user-applied edits/transformations are preserved
       const c = canvasRef.current;
       if (!c) throw new Error("Canvas tidak siap");
       const blob: Blob = await new Promise((resolve, reject) =>
@@ -217,7 +214,7 @@ export function ChesterStudio() {
         setBgRemoved(true);
         setHasImage(true);
         setLoading(false);
-        setInfo("Background berhasil dihapus!");
+        setInfo("Background berhasil dihapus ✨");
         setTimeout(pushHistory, 50);
       };
       i.onerror = () => { setLoading(false); setInfo("Gagal memuat hasil PNG"); };
@@ -227,34 +224,56 @@ export function ChesterStudio() {
       setInfo(`Remove BG gagal: ${e.message || e}`);
     }
   }
-  // Beauty apply / reset
+
   function applyBeauty() { pushHistory(); setInfo("Beauty diterapkan"); }
   function resetBeauty() { setSkin(0); setBrightness(100); setContrast(100); setSaturation(100); setSharpness(0); }
-  // 14 undo/redo
+
   function undo() {
-    const c = canvasRef.current; if (!c) return;
-    const cur = c.toDataURL();
+    if (historyRef.current.length === 0) return;
+    const c = canvasRef.current;
+    if (!c) return;
     const prev = historyRef.current.pop();
     if (!prev) return;
-    futureRef.current.push(cur);
-    const i = new Image(); i.onload = () => { c.getContext("2d")!.drawImage(i, 0, 0); }; i.src = prev;
-  }
-  function redo() {
-    const c = canvasRef.current; if (!c) return;
     const cur = c.toDataURL();
+    futureRef.current.push(cur);
+    const img = new Image();
+    img.onload = () => {
+      setImgEl(img);
+      setHasImage(true);
+      setCropMode(false);
+      setCropRect(null);
+      setInfo("Undo berhasil");
+    };
+    img.src = prev;
+  }
+
+  function redo() {
+    if (futureRef.current.length === 0) return;
     const nxt = futureRef.current.pop();
     if (!nxt) return;
-    historyRef.current.push(cur);
-    const i = new Image(); i.onload = () => { c.getContext("2d")!.drawImage(i, 0, 0); }; i.src = nxt;
+    const c = canvasRef.current;
+    if (c) {
+      const cur = c.toDataURL();
+      historyRef.current.push(cur);
+    }
+    const img = new Image();
+    img.onload = () => {
+      setImgEl(img);
+      setHasImage(true);
+      setCropMode(false);
+      setCropRect(null);
+      setInfo("Redo berhasil");
+    };
+    img.src = nxt;
   }
-  // 15 export
+
   function exportImage(type: "png" | "jpeg" | "webp") {
     const c = canvasRef.current; if (!c) return;
     const url = c.toDataURL(`image/${type}`);
     const a = document.createElement("a");
     a.href = url; a.download = `chester-export.${type === "jpeg" ? "jpg" : type}`; a.click();
   }
-  // 17 stickers
+
   function addSticker(emoji?: string, src?: string) {
     const id = String(Date.now() + Math.random());
     setStickers((s) => [...s, { id, emoji, src, x: 50, y: 50, size: 64 }]);
@@ -267,12 +286,11 @@ export function ChesterStudio() {
     r.onload = () => addSticker(undefined, r.result as string);
     r.readAsDataURL(f);
   }
-  // 18 video export — record canvas
+
   async function generateVideo() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const c = canvasRef.current; if (!c) return;
     setVideoProgress(0); setVideoURL("");
-    const stream = (canvas as any).captureStream(30) as MediaStream;
+    const stream = (c as any).captureStream(30) as MediaStream;
     const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -285,15 +303,14 @@ export function ChesterStudio() {
     const start = performance.now();
     const dur = duration * 1000;
     function tick() {
+      if (!c) return;
       const t = (performance.now() - start) / dur;
       setVideoProgress(Math.min(100, Math.floor(t * 100)));
-      // simple animation: vary brightness for "fadeIn"
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
       ctx.globalAlpha = 1;
-      // Re-draw with animation effect
       if (imgEl) {
-        const w = canvas.width, h = canvas.height;
+        const w = c.width, h = c.height;
         ctx.clearRect(0, 0, w, h);
         let alpha = 1, scale = 1, dx = 0;
         if (animIn === "fadeIn") alpha = Math.min(1, t * 3);
@@ -317,7 +334,7 @@ export function ChesterStudio() {
     }
     tick();
   }
-  // 19 AI prompt edit (apply hue/colorize from prompt heuristics)
+
   function aiEdit() {
     if (!aiPrompt.trim()) return;
     const p = aiPrompt.toLowerCase();
@@ -330,31 +347,7 @@ export function ChesterStudio() {
     setInfo(`AI edit (${editMode}): ${aiPrompt}`);
     pushHistory();
   }
-  // 20 brush — paint on mask canvas
-  const drawingRef = useRef(false);
-  function maskDown(e: React.MouseEvent) {
-    if (!brushOn || !maskRef.current) return;
-    drawingRef.current = true;
-    paintAt(e);
-  }
-  function maskMove(e: React.MouseEvent) {
-    if (!brushOn || !drawingRef.current) return;
-    paintAt(e);
-  }
-  function maskUp() { drawingRef.current = false; }
-  function paintAt(e: React.MouseEvent) {
-    const m = maskRef.current!;
-    const rect = m.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * m.width;
-    const y = ((e.clientY - rect.top) / rect.height) * m.height;
-    const ctx = m.getContext("2d")!;
-    ctx.fillStyle = "rgba(239,68,68,0.4)";
-    ctx.beginPath(); ctx.arc(x, y, brushSize, 0, Math.PI * 2); ctx.fill();
-  }
-  function clearMask() {
-    const m = maskRef.current; if (m) m.getContext("2d")!.clearRect(0, 0, m.width, m.height);
-  }
-  // 21 auto select
+
   function autoSelectClick(e: React.MouseEvent) {
     if (!autoSelectOn || !maskRef.current) return;
     const m = maskRef.current;
@@ -367,39 +360,290 @@ export function ChesterStudio() {
     ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
   }
   function resetPoints() {
-    setAutoPoints([]); clearMask();
+    setAutoPoints([]);
+    const m = maskRef.current; if (m) m.getContext("2d")!.clearRect(0, 0, m.width, m.height);
   }
-  // 22 bg image upload
+
+  // PERBAIKAN: saat upload gambar background, set bgMode ke "image"
   function bgImageInput(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
     const i = new Image();
-    i.onload = () => setBgImage(i);
+    i.onload = () => {
+      setBgImage(i);
+      setBgMode("image");
+      setInfo("Background gambar berhasil dimuat");
+    };
     i.src = URL.createObjectURL(f);
   }
-  // 23 color filter cycle
+
+  // PERBAIKAN: saat pilih warna, set bgMode ke "color"
+  function handleBgColorChange(color: string) {
+    setBgColor(color);
+    setBgMode("color");
+  }
+
   function cycleColorFilter() { setColorFilter((c) => (c + 45) % 360); }
-  // expand canvas: shrink image
   function shrink() { setZoom((z) => Math.max(50, z - 10)); }
+
+  // ---- Crop Functions ----
+  function activateCrop() {
+    if (!canvasRef.current || !hasImage) return;
+    const canvasDisplay = canvasRef.current;
+    const rect = canvasDisplay.getBoundingClientRect();
+    setCropRect({ x: 0, y: 0, w: rect.width, h: rect.height });
+    setCropMode(true);
+    drawCropOverlay();
+  }
+
+  function drawCropOverlay() {
+    const overlay = cropOverlayRef.current;
+    const canvasDisplay = canvasRef.current;
+    if (!overlay || !canvasDisplay || !cropRect) return;
+    const parentRect = canvasDisplay.getBoundingClientRect();
+    overlay.width = parentRect.width;
+    overlay.height = parentRect.height;
+    const ctx = overlay.getContext("2d")!;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, overlay.width, overlay.height);
+    ctx.clearRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+    const handleSize = 12;
+    const positions = [
+      { x: cropRect.x, y: cropRect.y, type: 'nw' },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y, type: 'ne' },
+      { x: cropRect.x, y: cropRect.y + cropRect.h - handleSize, type: 'sw' },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y + cropRect.h - handleSize, type: 'se' },
+      { x: cropRect.x + cropRect.w/2 - handleSize/2, y: cropRect.y, type: 'n' },
+      { x: cropRect.x + cropRect.w/2 - handleSize/2, y: cropRect.y + cropRect.h - handleSize, type: 's' },
+      { x: cropRect.x, y: cropRect.y + cropRect.h/2 - handleSize/2, type: 'w' },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y + cropRect.h/2 - handleSize/2, type: 'e' }
+    ];
+    ctx.fillStyle = "white";
+    positions.forEach(pos => {
+      ctx.fillRect(pos.x, pos.y, handleSize, handleSize);
+      ctx.fillStyle = "#2196F3";
+      ctx.fillRect(pos.x + 2, pos.y + 2, handleSize - 4, handleSize - 4);
+      ctx.fillStyle = "white";
+    });
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      const x = cropRect.x + (cropRect.w * i / 3);
+      ctx.moveTo(x, cropRect.y);
+      ctx.lineTo(x, cropRect.y + cropRect.h);
+      const y = cropRect.y + (cropRect.h * i / 3);
+      ctx.moveTo(cropRect.x, y);
+      ctx.lineTo(cropRect.x + cropRect.w, y);
+    }
+    ctx.stroke();
+  }
+
+  function startCropDrag(e: React.MouseEvent<HTMLCanvasElement>, type: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w') {
+    e.preventDefault();
+    if (!cropRect) return;
+    const rect = cropOverlayRef.current!.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    cropDragRef.current = {
+      active: true,
+      type,
+      startX,
+      startY,
+      initialRect: { ...cropRect }
+    };
+  }
+
+  function onCropMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!cropDragRef.current.active || !cropRect) return;
+    const rect = cropOverlayRef.current!.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    const dx = currentX - cropDragRef.current.startX;
+    const dy = currentY - cropDragRef.current.startY;
+    let newRect = { ...cropDragRef.current.initialRect };
+    const parentRect = canvasRef.current!.getBoundingClientRect();
+    const maxW = parentRect.width;
+    const maxH = parentRect.height;
+    const minSize = 50;
+
+    switch (cropDragRef.current.type) {
+      case 'move':
+        newRect.x = Math.min(Math.max(0, newRect.x + dx), maxW - newRect.w);
+        newRect.y = Math.min(Math.max(0, newRect.y + dy), maxH - newRect.h);
+        break;
+      case 'nw':
+        newRect.w = Math.max(minSize, newRect.w - dx);
+        newRect.h = Math.max(minSize, newRect.h - dy);
+        newRect.x = Math.min(newRect.x + dx, newRect.x + newRect.w - minSize);
+        newRect.y = Math.min(newRect.y + dy, newRect.y + newRect.h - minSize);
+        newRect.x = Math.max(0, newRect.x);
+        newRect.y = Math.max(0, newRect.y);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 'ne':
+        newRect.w = Math.max(minSize, newRect.w + dx);
+        newRect.h = Math.max(minSize, newRect.h - dy);
+        newRect.y = Math.min(newRect.y + dy, newRect.y + newRect.h - minSize);
+        newRect.y = Math.max(0, newRect.y);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 'sw':
+        newRect.w = Math.max(minSize, newRect.w - dx);
+        newRect.h = Math.max(minSize, newRect.h + dy);
+        newRect.x = Math.min(newRect.x + dx, newRect.x + newRect.w - minSize);
+        newRect.x = Math.max(0, newRect.x);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 'se':
+        newRect.w = Math.max(minSize, newRect.w + dx);
+        newRect.h = Math.max(minSize, newRect.h + dy);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 'n':
+        newRect.h = Math.max(minSize, newRect.h - dy);
+        newRect.y = Math.min(newRect.y + dy, newRect.y + newRect.h - minSize);
+        newRect.y = Math.max(0, newRect.y);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 's':
+        newRect.h = Math.max(minSize, newRect.h + dy);
+        newRect.h = Math.min(maxH - newRect.y, newRect.h);
+        break;
+      case 'e':
+        newRect.w = Math.max(minSize, newRect.w + dx);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        break;
+      case 'w':
+        newRect.w = Math.max(minSize, newRect.w - dx);
+        newRect.x = Math.min(newRect.x + dx, newRect.x + newRect.w - minSize);
+        newRect.x = Math.max(0, newRect.x);
+        newRect.w = Math.min(maxW - newRect.x, newRect.w);
+        break;
+    }
+    setCropRect(newRect);
+    drawCropOverlay();
+  }
+
+  function endCropDrag() {
+    cropDragRef.current.active = false;
+  }
+
+  async function applyCrop() {
+    if (!cropRect || !canvasRef.current || !imgEl) return;
+    const canvasDisplay = canvasRef.current;
+    const displayRect = canvasDisplay.getBoundingClientRect();
+    const scaleX = canvasDisplay.width / displayRect.width;
+    const scaleY = canvasDisplay.height / displayRect.height;
+    let sx = cropRect.x * scaleX;
+    let sy = cropRect.y * scaleY;
+    let sw = cropRect.w * scaleX;
+    let sh = cropRect.h * scaleY;
+    sx = Math.max(0, Math.min(sx, canvasDisplay.width));
+    sy = Math.max(0, Math.min(sy, canvasDisplay.height));
+    sw = Math.min(sw, canvasDisplay.width - sx);
+    sh = Math.min(sh, canvasDisplay.height - sy);
+    if (sw <= 0 || sh <= 0) {
+      setInfo("Area crop tidak valid");
+      return;
+    }
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = sw;
+    tempCanvas.height = sh;
+    const tempCtx = tempCanvas.getContext("2d")!;
+    tempCtx.drawImage(canvasDisplay, sx, sy, sw, sh, 0, 0, sw, sh);
+    const croppedImage = new Image();
+    croppedImage.onload = () => {
+      setImgEl(croppedImage);
+      setHasImage(true);
+      setCropMode(false);
+      setCropRect(null);
+      pushHistory();
+      setInfo("Crop berhasil diterapkan");
+      const overlay = cropOverlayRef.current;
+      if (overlay) {
+        const ctx = overlay.getContext("2d");
+        ctx?.clearRect(0, 0, overlay.width, overlay.height);
+      }
+    };
+    croppedImage.onerror = () => {
+      setInfo("Gagal melakukan crop");
+      setCropMode(false);
+    };
+    croppedImage.src = tempCanvas.toDataURL();
+  }
+
+  function cancelCrop() {
+    setCropMode(false);
+    setCropRect(null);
+    const overlay = cropOverlayRef.current;
+    if (overlay) {
+      const ctx = overlay.getContext("2d")!;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+  }
+
+  useEffect(() => {
+    if (cropMode && cropRect) drawCropOverlay();
+  }, [cropRect, cropMode]);
+
+  function getCropHandleAt(e: React.MouseEvent<HTMLCanvasElement>): 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null {
+    if (!cropRect) return null;
+    const rect = cropOverlayRef.current!.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const handleSize = 12;
+    const handlePositions = [
+      { x: cropRect.x, y: cropRect.y, type: 'nw' as const },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y, type: 'ne' as const },
+      { x: cropRect.x, y: cropRect.y + cropRect.h - handleSize, type: 'sw' as const },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y + cropRect.h - handleSize, type: 'se' as const },
+      { x: cropRect.x + cropRect.w/2 - handleSize/2, y: cropRect.y, type: 'n' as const },
+      { x: cropRect.x + cropRect.w/2 - handleSize/2, y: cropRect.y + cropRect.h - handleSize, type: 's' as const },
+      { x: cropRect.x, y: cropRect.y + cropRect.h/2 - handleSize/2, type: 'w' as const },
+      { x: cropRect.x + cropRect.w - handleSize, y: cropRect.y + cropRect.h/2 - handleSize/2, type: 'e' as const }
+    ];
+    for (const h of handlePositions) {
+      if (x >= h.x && x <= h.x + handleSize && y >= h.y && y <= h.y + handleSize) {
+        return h.type;
+      }
+    }
+    if (x >= cropRect.x && x <= cropRect.x + cropRect.w && y >= cropRect.y && y <= cropRect.y + cropRect.h) {
+      return 'move';
+    }
+    return null;
+  }
+
+  function onCropMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!cropMode) return;
+    const handle = getCropHandleAt(e);
+    if (handle) {
+      startCropDrag(e, handle);
+    }
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
       <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex justify-between items-center flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <Logo size={44} />
-          <div>
-            <h1>Chester AI Studio Pro</h1>
-            <p className="text-xs opacity-90">by : Evenly · Rolan · Jay </p>
-          </div>
+        <div>
+          <h1 className="flex items-center gap-2">Chester AI Studio Pro</h1>
+          <p className="text-xs opacity-90">by : Evenly · Rolan · Jay</p>
         </div>
-        <button onClick={generateVideo} className="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded-lg text-sm">Foto ke Video</button>
+        <button onClick={generateVideo} className="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded-lg text-sm">🎥 Foto ke Video</button>
       </div>
 
       <div className="flex flex-col lg:flex-row">
         {/* Sidebar */}
         <div className="w-full lg:w-80 p-4 border-r border-gray-200 bg-gray-50 space-y-3 max-h-[85vh] overflow-y-auto">
-          <div className="bg-yellow-50 p-2 rounded-lg text-xs text-yellow-800">{info}</div>
+          <div className="bg-yellow-50 p-2 rounded-lg text-xs text-yellow-800"> {info}</div>
 
-          {/* AI Model */}
           <Panel title="AI Model">
             <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} className="w-full p-2 border rounded-lg">
               <option value="medium">General Object (HD)</option>
@@ -407,19 +651,16 @@ export function ChesterStudio() {
             </select>
           </Panel>
 
-          {/* Text to image */}
           <Panel title="Text to Image">
             <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="cyberpunk girl neon city" className="w-full p-2 border rounded-lg text-sm" />
             <button onClick={generateAIImage} className="w-full bg-blue-600 text-white py-2 rounded mt-2 hover:bg-blue-700">Generate AI Image</button>
           </Panel>
 
-          {/* Remove BG */}
           <Panel title="Remove Background">
             <button onClick={removeBG} disabled={!hasImage} className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50">Remove Background</button>
             <p className="text-xs text-gray-500 mt-1">Upload gambar dulu ya!</p>
           </Panel>
 
-          {/* Beauty */}
           <Panel title="AI Beauty Retouch" tone="pink">
             <Slider label="Skin Smoothing" value={skin} setValue={setSkin} max={100} />
             <Slider label="Brightness" value={brightness} setValue={setBrightness} max={200} />
@@ -430,7 +671,6 @@ export function ChesterStudio() {
             <button onClick={resetBeauty} className="w-full bg-gray-400 text-white py-1 rounded-lg text-sm mt-2 hover:bg-gray-500">Reset Beauty</button>
           </Panel>
 
-          {/* Quality + Before/After */}
           <Panel title="Quality Upscale & Before/After">
             <div className="grid grid-cols-2 gap-2 mb-2">
               <button onClick={() => setQuality("standard")} className={`px-2 py-1 rounded text-sm ${quality === "standard" ? "bg-green-500 text-white" : "bg-gray-200"}`}>Standard</button>
@@ -449,7 +689,7 @@ export function ChesterStudio() {
             <span className="text-xs">Intensity: {shadow}</span>
           </Panel>
 
-          <Panel title="〰️ Edge Smoothing">
+          <Panel title="Edge Smoothing">
             <input type="range" min={0} max={12} value={smooth} onChange={(e) => setSmooth(+e.target.value)} className="w-full" />
           </Panel>
 
@@ -524,10 +764,15 @@ export function ChesterStudio() {
             <button onClick={aiEdit} className="w-full bg-indigo-600 text-white py-2 rounded">Generate AI Edit</button>
           </Panel>
 
-          <Panel title="Seleksi Brush" tone="red">
-            <button onClick={() => setBrushOn((v) => !v)} className={`w-full py-1 rounded text-sm text-white ${brushOn ? "bg-red-700" : "bg-red-600"}`}>{brushOn ? "Nonaktifkan Brush" : "Aktifkan Brush"}</button>
-            <input type="range" min={5} max={50} value={brushSize} onChange={(e) => setBrushSize(+e.target.value)} className="w-full mt-2" />
-            <button onClick={clearMask} className="w-full bg-gray-500 text-white py-1 rounded text-sm mt-1">Hapus Mask</button>
+          <Panel title="Crop Image" tone="green">
+            <button onClick={activateCrop} disabled={!hasImage} className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">✂️ Aktifkan Crop (WhatsApp style)</button>
+            {cropMode && (
+              <div className="mt-2 flex gap-2">
+                <button onClick={applyCrop} className="flex-1 bg-blue-600 text-white py-1 rounded text-sm">Terapkan Crop</button>
+                <button onClick={cancelCrop} className="flex-1 bg-gray-600 text-white py-1 rounded text-sm">Batal</button>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">Drag area, resize via handle. Klik Terapkan untuk memotong.</p>
           </Panel>
 
           <Panel title="Auto Select" tone="blue">
@@ -535,18 +780,37 @@ export function ChesterStudio() {
             <button onClick={resetPoints} className="w-full bg-gray-600 text-white py-1 rounded text-sm mt-1">Reset Titik ({autoPoints.length})</button>
           </Panel>
 
+          {/* Panel Background dengan perbaikan */}
           <Panel title="Background">
             <select value={bgMode} onChange={(e) => setBgMode(e.target.value as any)} className="w-full p-2 border rounded text-sm">
               <option value="color">Warna</option>
               <option value="image">Gambar</option>
             </select>
-            <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-full h-10 rounded-lg cursor-pointer mt-2" />
-            <input type="file" accept="image/*" onChange={bgImageInput} className="w-full text-xs p-1 border rounded mt-2" />
-            <button onClick={() => setBgRemoved(true)} className="w-full bg-blue-600 text-white py-1.5 rounded text-sm mt-2 hover:bg-blue-700">Ganti Background</button>
+            <input
+              type="color"
+              value={bgColor}
+              onChange={(e) => handleBgColorChange(e.target.value)}
+              className="w-full h-10 rounded-lg cursor-pointer mt-2"
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={bgImageInput}
+              className="w-full text-xs p-1 border rounded mt-2"
+            />
+            <button
+              onClick={() => setBgRemoved(true)}
+              className="w-full bg-blue-600 text-white py-1.5 rounded text-sm mt-2 hover:bg-blue-700"
+            >
+              Ganti Background
+            </button>
+            <p className="text-xs text-gray-500 mt-1">
+              {bgRemoved ? "Background aktif" : "Aktifkan dengan 'Ganti Background' atau hapus background dulu"}
+            </p>
           </Panel>
 
           <Panel title="Filter Warna">
-            <button onClick={cycleColorFilter} className="w-full bg-purple-500 text-white py-1.5 rounded text-sm hover:bg-purple-600">🎨 Filter Warna ({colorFilter}°)</button>
+            <button onClick={cycleColorFilter} className="w-full bg-purple-500 text-white py-1.5 rounded text-sm hover:bg-purple-600">Filter Warna ({colorFilter}°)</button>
           </Panel>
         </div>
 
@@ -566,19 +830,44 @@ export function ChesterStudio() {
           <div className={`mt-4 relative ${hasImage ? "" : "hidden"}`} style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}>
             <div className="relative inline-block rounded-lg overflow-hidden" style={{ background: "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)", backgroundSize: "20px 20px", backgroundPosition: "0 0,0 10px,10px -10px,-10px 0px" }}>
               <canvas ref={canvasRef} className="rounded-lg shadow-md max-w-full block" style={{ maxWidth: "min(800px,90vw)" }} />
+              
+              {/* Mask canvas (Auto Select) */}
               <canvas
                 ref={maskRef}
                 className="absolute inset-0 w-full h-full"
-                style={{ pointerEvents: brushOn || autoSelectOn ? "auto" : "none", cursor: brushOn ? "crosshair" : autoSelectOn ? "pointer" : "default" }}
-                onMouseDown={maskDown} onMouseMove={maskMove} onMouseUp={maskUp} onMouseLeave={maskUp}
+                style={{
+                  pointerEvents: !cropMode && autoSelectOn ? "auto" : "none",
+                  cursor: !cropMode && autoSelectOn ? "crosshair" : "default"
+                }}
                 onClick={autoSelectClick}
               />
-              {/* Before/after dimmer overlay using img clipPath: simulate by overlaying original image */}
+              
+              {/* Crop overlay canvas (interaktif) */}
+              <canvas
+                ref={cropOverlayRef}
+                className="absolute inset-0 w-full h-full"
+                style={{
+                  pointerEvents: cropMode ? "auto" : "none",
+                  cursor: cropMode ? "default" : "none"
+                }}
+                onMouseDown={onCropMouseDown}
+                onMouseMove={onCropMouseMove}
+                onMouseUp={endCropDrag}
+                onMouseLeave={endCropDrag}
+              />
+              
+              {/* Before/after dimmer overlay */}
               {imgEl && beforeAfter < 100 && (
                 <img src={imgEl.src} alt="before" className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   style={{ clipPath: `inset(0 0 0 ${beforeAfter}%)` }} />
               )}
-              <div ref={stickerLayerRef} className="absolute inset-0">
+              
+              {/* Sticker layer */}
+              <div
+                ref={stickerLayerRef}
+                className="absolute inset-0"
+                style={{ pointerEvents: cropMode ? "none" : "auto" }}
+              >
                 {stickers.map((s) => (
                   <StickerView key={s.id} sticker={s} onMove={(x, y) => setStickers((arr) => arr.map((a) => a.id === s.id ? { ...a, x, y } : a))} onResize={(sz) => setStickers((arr) => arr.map((a) => a.id === s.id ? { ...a, size: sz } : a))} onDelete={() => removeSticker(s.id)} locked={locked} />
                 ))}
@@ -598,7 +887,7 @@ export function ChesterStudio() {
 }
 
 function Panel({ title, tone, children }: { title: string; tone?: string; children: React.ReactNode }) {
-  const bg = tone === "pink" ? "bg-pink-50" : tone === "orange" ? "bg-orange-50" : tone === "red" ? "bg-red-50" : tone === "blue" ? "bg-blue-50" : tone === "indigo" ? "bg-indigo-50" : "bg-white";
+  const bg = tone === "pink" ? "bg-pink-50" : tone === "orange" ? "bg-orange-50" : tone === "red" ? "bg-red-50" : tone === "blue" ? "bg-blue-50" : tone === "indigo" ? "bg-indigo-50" : tone === "green" ? "bg-emerald-50" : "bg-white";
   return (
     <div className={`${bg} p-3 rounded-xl shadow-sm`}>
       <div className="text-sm mb-2">{title}</div>
