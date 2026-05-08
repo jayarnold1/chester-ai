@@ -175,7 +175,7 @@ export function ChesterStudio() {
       return;
     }
     setGeneratedImageLoading(true);
-    setInfo("Generating AI image with Pollinations...");
+    setInfo("Generating AI image with Chester AI...");
     try {
       const encodedPrompt = encodeURIComponent(prompt);
       const model = "flux";
