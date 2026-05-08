@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+// 🔑 API Key Pollinations
+const POLLINATIONS_API_KEY = "sk_AWpnKcJrTzd3qLTFYXKA02urWhSNnAaB";
+
 type Sticker = { id: string; emoji?: string; src?: string; x: number; y: number; size: number };
 
 const STICKER_EMOJIS = ["⭐", "❤️", "🔥", "✨", "🎉", "😎", "🌟", "💎", "🌸", "🦄", "🌈", "🍀"];
@@ -10,7 +13,6 @@ const MOTION = ["none", "zoomIn", "panLeft", "panRight"];
 
 export function ChesterStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const maskRef = useRef<HTMLCanvasElement>(null);
   const stickerLayerRef = useRef<HTMLDivElement>(null);
   const cropOverlayRef = useRef<HTMLCanvasElement>(null);
   const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
@@ -18,54 +20,62 @@ export function ChesterStudio() {
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState("Upload foto, tunggu proses AI");
 
-  // 1. AI Model
+  // AI Model
   const [aiModel, setAiModel] = useState("medium");
-  // 2. Text-to-image prompt
+  // Text-to-image prompt
   const [prompt, setPrompt] = useState("");
-  // 4-8. Beauty
+  // Beauty
   const [skin, setSkin] = useState(0);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [saturation, setSaturation] = useState(100);
   const [sharpness, setSharpness] = useState(0);
-  // 9. Quality
-  const [quality, setQuality] = useState<"standard" | "hd">("standard");
-  // 10. Before/after slider
+  // Quality & before/after (akan diganti)
   const [beforeAfter, setBeforeAfter] = useState(100);
-  // 11/12 shadow / smooth
+  // Shadow & smooth
   const [shadow, setShadow] = useState(4);
   const [smooth, setSmooth] = useState(2);
-  // 13 zoom & lock
+  // Zoom & lock
   const [zoom, setZoom] = useState(100);
   const [locked, setLocked] = useState(false);
-  // 14 undo/redo
+  // Undo/redo
   const historyRef = useRef<string[]>([]);
   const futureRef = useRef<string[]>([]);
-  // 17 stickers
+  // Stickers
   const [stickers, setStickers] = useState<Sticker[]>([]);
-  // 18 PPT animation
+  // Video animation from canvas
   const [duration, setDuration] = useState(5);
   const [animIn, setAnimIn] = useState("fadeIn");
   const [animOut, setAnimOut] = useState("none");
   const [motion, setMotion] = useState("none");
   const [videoURL, setVideoURL] = useState("");
   const [videoProgress, setVideoProgress] = useState(0);
-  // 19 AI prompt edit
+  // AI Prompt edit
   const [aiPrompt, setAiPrompt] = useState("");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
-  // 21 auto select
-  const [autoSelectOn, setAutoSelectOn] = useState(false);
-  const [autoPoints, setAutoPoints] = useState<{ x: number; y: number }[]>([]);
-  // 22 background
+  // Background
   const [bgMode, setBgMode] = useState<"color" | "image">("color");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
-  // transformations
+  // Transformations
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
   const [rotate, setRotate] = useState(0);
   const [bgRemoved, setBgRemoved] = useState(false);
   const [colorFilter, setColorFilter] = useState(0);
+
+  // ---- Wadah output khusus untuk Text-to-Image ----
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [generatedImageLoading, setGeneratedImageLoading] = useState(false);
+
+  // ---- Fitur baru: Background Generator ----
+  const [bgPrompt, setBgPrompt] = useState("");
+  const [generatingBg, setGeneratingBg] = useState(false);
+
+  // ---- Fitur baru: Art Style Transfer ----
+  const [stylePrompt, setStylePrompt] = useState("");
+  const [styleTransferLoading, setStyleTransferLoading] = useState(false);
+  const [styleOutputUrl, setStyleOutputUrl] = useState<string | null>(null);
 
   // ---- Crop states ----
   const [cropMode, setCropMode] = useState(false);
@@ -91,20 +101,15 @@ export function ChesterStudio() {
     const c = canvasRef.current;
     if (!c || !imgEl) return;
     const ctx = c.getContext("2d")!;
-    const scale = quality === "hd" ? 2 : 1;
+    const scale = 1; // Hapus quality, gunakan ukuran asli
     const w = imgEl.naturalWidth * scale;
     const h = imgEl.naturalHeight * scale;
     c.width = w;
     c.height = h;
-    if (maskRef.current) {
-      maskRef.current.width = w;
-      maskRef.current.height = h;
-    }
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
 
-    // Hanya gambar background jika bgRemoved true
     if (bgRemoved) {
       if (bgMode === "color") {
         ctx.fillStyle = bgColor;
@@ -114,19 +119,16 @@ export function ChesterStudio() {
       }
     }
 
-    // transformations
     ctx.translate(w / 2, h / 2);
     ctx.rotate((rotate * Math.PI) / 180);
     ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
 
-    // shadow
     if (shadow > 0) {
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = shadow * 2;
       ctx.shadowOffsetY = shadow;
     }
 
-    // filters
     const filterParts: string[] = [];
     filterParts.push(`brightness(${brightness}%)`);
     filterParts.push(`contrast(${contrast}%)`);
@@ -141,7 +143,7 @@ export function ChesterStudio() {
     ctx.restore();
   }
 
-  useEffect(() => { if (imgEl) draw(); }, [imgEl, brightness, contrast, saturation, skin, sharpness, smooth, shadow, quality, flipH, flipV, rotate, bgMode, bgColor, bgImage, bgRemoved, colorFilter]);
+  useEffect(() => { if (imgEl) draw(); }, [imgEl, brightness, contrast, saturation, skin, sharpness, smooth, shadow, flipH, flipV, rotate, bgMode, bgColor, bgImage, bgRemoved, colorFilter]);
 
   // ---- Upload ----
   function handleFile(file: File) {
@@ -166,27 +168,154 @@ export function ChesterStudio() {
     const f = e.dataTransfer.files?.[0]; if (f) handleFile(f);
   }
 
-  // ---- Feature actions ----
+  // ---- Pollinations AI Image Generation ----
   async function generateAIImage() {
-    if (!prompt.trim()) return;
-    setLoading(true); setInfo("Generating AI image...");
-    const seed = encodeURIComponent(prompt);
-    const url = `https://picsum.photos/seed/${seed}/768/768`;
-    const i = new Image();
-    i.crossOrigin = "anonymous";
-    i.onload = () => {
-      setImgEl(i); setHasImage(true); setLoading(false);
-      setInfo(`Generated for "${prompt}"`);
-      setTimeout(pushHistory, 50);
-    };
-    i.onerror = () => { setLoading(false); setInfo("Gagal generate."); };
-    i.src = url;
+    if (!prompt.trim()) {
+      setInfo("Isi prompt terlebih dahulu");
+      return;
+    }
+    setGeneratedImageLoading(true);
+    setInfo("Generating AI image with Pollinations...");
+    try {
+      const encodedPrompt = encodeURIComponent(prompt);
+      const model = "flux";
+      const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=${model}`;
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${POLLINATIONS_API_KEY}` }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.startsWith("image/")) {
+        const text = await response.text();
+        throw new Error("API tidak mengembalikan gambar: " + text.substring(0, 200));
+      }
+      
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      setGeneratedImageUrl(imageUrl);
+      setInfo(`Image generated for "${prompt}" - klik "Gunakan di Canvas" untuk edit`);
+    } catch (err: any) {
+      setInfo(`Pollinas error: ${err.message}`);
+      console.error(err);
+    } finally {
+      setGeneratedImageLoading(false);
+    }
   }
 
+  // Pindahkan hasil generate ke canvas utama
+  function useGeneratedImageInCanvas() {
+    if (!generatedImageUrl) return;
+    const img = new Image();
+    img.onload = () => {
+      setImgEl(img);
+      setHasImage(true);
+      setInfo("Gambar hasil generate dipindahkan ke canvas");
+      setTimeout(pushHistory, 50);
+    };
+    img.src = generatedImageUrl;
+  }
+
+  // ---- FITUR BARU 1: AI Background Generator (mengganti background dengan teks) ----
+  async function generateBackgroundFromPrompt() {
+    if (!bgPrompt.trim()) {
+      setInfo("❌ Masukkan deskripsi background.");
+      return;
+    }
+    if (!imgEl) {
+      setInfo("❌ Upload gambar terlebih dahulu.");
+      return;
+    }
+    setGeneratingBg(true);
+    setInfo("🎨 Generating background image...");
+    try {
+      const encodedPrompt = encodeURIComponent(bgPrompt);
+      const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=flux`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${POLLINATIONS_API_KEY}` }
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const blob = await response.blob();
+      const bgUrl = URL.createObjectURL(blob);
+      const bgImg = new Image();
+      bgImg.onload = () => {
+        setBgImage(bgImg);
+        setBgMode("image");
+        setBgRemoved(true); // Aktifkan mode background
+        setInfo("✅ Background berhasil diganti! Silakan atur posisi objek jika perlu.");
+        URL.revokeObjectURL(bgUrl);
+        setGeneratingBg(false);
+        // Trigger redraw
+        setTimeout(() => draw(), 100);
+      };
+      bgImg.onerror = () => {
+        setInfo("❌ Gagal memuat background.");
+        setGeneratingBg(false);
+      };
+      bgImg.src = bgUrl;
+    } catch (err: any) {
+      setInfo(`❌ Error: ${err.message}`);
+      setGeneratingBg(false);
+    }
+  }
+
+  // ---- FITUR BARU 2: Art Style Transfer (menghasilkan gambar baru dengan gaya artistik) ----
+  async function generateStyleTransfer() {
+    if (!stylePrompt.trim()) {
+      setInfo("❌ Masukkan gaya yang diinginkan (contoh: anime, oil painting, cyberpunk).");
+      return;
+    }
+    if (!prompt.trim()) {
+      setInfo("❌ Isi prompt deskripsi subjek di panel 'Text to Image' terlebih dahulu.");
+      return;
+    }
+    setStyleTransferLoading(true);
+    setInfo("🎨 Generating art style transfer...");
+    try {
+      // Gabungkan prompt asli dengan gaya
+      const fullPrompt = `${prompt}, in the style of ${stylePrompt}, high quality, detailed`;
+      const encodedPrompt = encodeURIComponent(fullPrompt);
+      const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=flux`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${POLLINATIONS_API_KEY}` }
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      setStyleOutputUrl(imageUrl);
+      setInfo(`✅ Style transfer berhasil. Klik "Gunakan di Canvas" untuk menerapkan.`);
+    } catch (err: any) {
+      setInfo(`❌ Style transfer error: ${err.message}`);
+    } finally {
+      setStyleTransferLoading(false);
+    }
+  }
+
+  function useStyleTransferInCanvas() {
+    if (!styleOutputUrl) return;
+    const img = new Image();
+    img.onload = () => {
+      setImgEl(img);
+      setHasImage(true);
+      setInfo("Gambar hasil style transfer dipindahkan ke canvas.");
+      setTimeout(pushHistory, 50);
+    };
+    img.src = styleOutputUrl;
+  }
+
+  // ---- Remove Background ----
   async function removeBG() {
     if (!imgEl) return;
     setLoading(true);
-    setInfo("Menghapus background via remove.bg...");
+    setInfo("Sedang menghapus background...");
     try {
       const c = canvasRef.current;
       if (!c) throw new Error("Canvas tidak siap");
@@ -287,7 +416,7 @@ export function ChesterStudio() {
     r.readAsDataURL(f);
   }
 
-  async function generateVideo() {
+  async function generateVideoFromCanvas() {
     const c = canvasRef.current; if (!c) return;
     setVideoProgress(0); setVideoURL("");
     const stream = (c as any).captureStream(30) as MediaStream;
@@ -348,23 +477,6 @@ export function ChesterStudio() {
     pushHistory();
   }
 
-  function autoSelectClick(e: React.MouseEvent) {
-    if (!autoSelectOn || !maskRef.current) return;
-    const m = maskRef.current;
-    const rect = m.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * m.width;
-    const y = ((e.clientY - rect.top) / rect.height) * m.height;
-    setAutoPoints((p) => [...p, { x, y }]);
-    const ctx = m.getContext("2d")!;
-    ctx.fillStyle = "rgba(59,130,246,0.7)";
-    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
-  }
-  function resetPoints() {
-    setAutoPoints([]);
-    const m = maskRef.current; if (m) m.getContext("2d")!.clearRect(0, 0, m.width, m.height);
-  }
-
-  // PERBAIKAN: saat upload gambar background, set bgMode ke "image"
   function bgImageInput(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
     const i = new Image();
@@ -376,7 +488,6 @@ export function ChesterStudio() {
     i.src = URL.createObjectURL(f);
   }
 
-  // PERBAIKAN: saat pilih warna, set bgMode ke "color"
   function handleBgColorChange(color: string) {
     setBgColor(color);
     setBgMode("color");
@@ -636,12 +747,12 @@ export function ChesterStudio() {
           <h1 className="flex items-center gap-2">Chester AI Studio Pro</h1>
           <p className="text-xs opacity-90">by : Evenly · Rolan · Jay</p>
         </div>
-        <button onClick={generateVideo} className="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded-lg text-sm">🎥 Foto ke Video</button>
+        <button onClick={generateVideoFromCanvas} className="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded-lg text-sm">🎥 Foto ke Video (Canvas)</button>
       </div>
 
       <div className="flex flex-col lg:flex-row">
         {/* Sidebar */}
-        <div className="w-full lg:w-80 p-4 border-r border-gray-200 bg-gray-50 space-y-3 max-h-[85vh] overflow-y-auto">
+        <div className="w-full lg:w-96 p-4 border-r border-gray-200 bg-gray-50 space-y-3 max-h-[85vh] overflow-y-auto">
           <div className="bg-yellow-50 p-2 rounded-lg text-xs text-yellow-800"> {info}</div>
 
           <Panel title="AI Model">
@@ -651,9 +762,22 @@ export function ChesterStudio() {
             </select>
           </Panel>
 
-          <Panel title="Text to Image">
+          {/* PANEL TEXT TO IMAGE */}
+          <Panel title="Text to Image" tone="blue">
             <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="cyberpunk girl neon city" className="w-full p-2 border rounded-lg text-sm" />
-            <button onClick={generateAIImage} className="w-full bg-blue-600 text-white py-2 rounded mt-2 hover:bg-blue-700">Generate AI Image</button>
+            <button onClick={generateAIImage} disabled={generatedImageLoading} className="w-full bg-blue-600 text-white py-2 rounded mt-2 hover:bg-blue-700 disabled:opacity-50">
+              {generatedImageLoading ? "Generating..." : "Generate AI Image"}
+            </button>
+            {generatedImageUrl && (
+              <div className="mt-3 p-2 bg-white rounded border">
+                <p className="text-xs font-semibold mb-1">Output Image:</p>
+                <img src={generatedImageUrl} alt="Generated" className="w-full rounded border max-h-40 object-contain" />
+                <div className="flex gap-2 mt-2">
+                  <button onClick={useGeneratedImageInCanvas} className="flex-1 bg-green-600 text-white text-xs py-1 rounded hover:bg-green-700">Gunakan di Canvas</button>
+                  <a href={generatedImageUrl} download="pollinations-image.png" className="flex-1 bg-gray-600 text-white text-xs py-1 rounded text-center hover:bg-gray-700">Download</a>
+                </div>
+              </div>
+            )}
           </Panel>
 
           <Panel title="Remove Background">
@@ -671,17 +795,51 @@ export function ChesterStudio() {
             <button onClick={resetBeauty} className="w-full bg-gray-400 text-white py-1 rounded-lg text-sm mt-2 hover:bg-gray-500">Reset Beauty</button>
           </Panel>
 
-          <Panel title="Quality Upscale & Before/After">
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <button onClick={() => setQuality("standard")} className={`px-2 py-1 rounded text-sm ${quality === "standard" ? "bg-green-500 text-white" : "bg-gray-200"}`}>Standard</button>
-              <button onClick={() => setQuality("hd")} className={`px-2 py-1 rounded text-sm ${quality === "hd" ? "bg-green-500 text-white" : "bg-gray-200"}`}>HD 2x</button>
-            </div>
-            <p className="text-xs text-center text-gray-500">{imgEl ? `${imgEl.naturalWidth * (quality === "hd" ? 2 : 1)}×${imgEl.naturalHeight * (quality === "hd" ? 2 : 1)} px` : ""}</p>
-            <div className="mt-3 pt-2 border-t border-gray-200">
-              <div className="flex justify-between text-xs"><span>After</span><span>Before</span></div>
-              <input type="range" min={0} max={100} value={beforeAfter} onChange={(e) => setBeforeAfter(+e.target.value)} className="w-full" />
-              <p className="text-xs text-center text-gray-400">Geser slider untuk perbandingan</p>
-            </div>
+          {/* FITUR BARU: AI Background Generator (mengganti card Quality Upscale) */}
+          <Panel title="AI Background Generator" tone="green">
+            <textarea 
+              value={bgPrompt} 
+              onChange={(e) => setBgPrompt(e.target.value)} 
+              rows={2} 
+              className="w-full p-2 border rounded text-sm" 
+              placeholder="Deskripsikan background baru... contoh: sunset beach, cyberpunk city, forest with waterfall"
+            />
+            <button 
+              onClick={generateBackgroundFromPrompt} 
+              disabled={generatingBg || !hasImage} 
+              className="w-full bg-green-600 text-white py-2 rounded mt-2 hover:bg-green-700 disabled:opacity-50"
+            >
+              {generatingBg ? "Generating Background..." : "Generate & Ganti Background"}
+            </button>
+            <p className="text-xs text-gray-500 mt-1">Akan menghasilkan background dari teks dan mengganti latar belakang gambar saat ini.</p>
+          </Panel>
+
+          {/* FITUR BARU: Art Style Transfer (mengganti card Text-to-Video) */}
+          <Panel title="AI Art Style Transfer" tone="purple">
+            <input 
+              value={stylePrompt} 
+              onChange={(e) => setStylePrompt(e.target.value)} 
+              placeholder="Gaya artistik: anime, oil painting, cyberpunk, watercolor, van gogh, pixel art"
+              className="w-full p-2 border rounded text-sm"
+            />
+            <button 
+              onClick={generateStyleTransfer} 
+              disabled={styleTransferLoading} 
+              className="w-full bg-purple-600 text-white py-2 rounded mt-2 hover:bg-purple-700 disabled:opacity-50"
+            >
+              {styleTransferLoading ? "Generating Style Transfer..." : "Apply Style Transfer"}
+            </button>
+            {styleOutputUrl && (
+              <div className="mt-3 p-2 bg-white rounded border">
+                <p className="text-xs font-semibold mb-1">Hasil Style Transfer:</p>
+                <img src={styleOutputUrl} alt="Style Transfer" className="w-full rounded border max-h-40 object-contain" />
+                <div className="flex gap-2 mt-2">
+                  <button onClick={useStyleTransferInCanvas} className="flex-1 bg-green-600 text-white text-xs py-1 rounded hover:bg-green-700">Gunakan di Canvas</button>
+                  <a href={styleOutputUrl} download="style-transfer.png" className="flex-1 bg-gray-600 text-white text-xs py-1 rounded text-center hover:bg-gray-700">Download</a>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-1">Berdasarkan prompt di Text to Image, hasilkan gambar dengan gaya artistik pilihan.</p>
           </Panel>
 
           <Panel title="Shadow Reconstruction">
@@ -731,7 +889,7 @@ export function ChesterStudio() {
             <button onClick={clearStickers} className="w-full bg-gray-500 text-white py-1 rounded text-sm">Hapus Semua Stiker</button>
           </Panel>
 
-          <Panel title="Animasikan!" tone="orange">
+          <Panel title="Animasikan (Foto di Canvas ke Video)" tone="orange">
             <label className="text-xs">Durasi: {duration} detik</label>
             <input type="range" min={2} max={10} step={0.5} value={duration} onChange={(e) => setDuration(+e.target.value)} className="w-full" />
             <select value={animIn} onChange={(e) => setAnimIn(e.target.value)} className="w-full p-1 border rounded text-sm mt-1">
@@ -743,7 +901,7 @@ export function ChesterStudio() {
             <select value={motion} onChange={(e) => setMotion(e.target.value)} className="w-full p-1 border rounded text-sm mt-1">
               {MOTION.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
-            <button onClick={generateVideo} className="w-full bg-orange-600 text-white py-2 rounded mt-2">Generate Video</button>
+            <button onClick={generateVideoFromCanvas} className="w-full bg-orange-600 text-white py-2 rounded mt-2">Generate Video dari Foto Canvas</button>
             {videoProgress > 0 && videoProgress < 100 && (
               <div className="mt-2"><div className="bg-gray-200 rounded-full h-2 overflow-hidden"><div className="bg-orange-600 h-2" style={{ width: `${videoProgress}%` }} /></div></div>
             )}
@@ -765,7 +923,7 @@ export function ChesterStudio() {
           </Panel>
 
           <Panel title="Crop Image" tone="green">
-            <button onClick={activateCrop} disabled={!hasImage} className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">✂️ Aktifkan Crop (WhatsApp style)</button>
+            <button onClick={activateCrop} disabled={!hasImage} className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">Aktifkan Crop</button>
             {cropMode && (
               <div className="mt-2 flex gap-2">
                 <button onClick={applyCrop} className="flex-1 bg-blue-600 text-white py-1 rounded text-sm">Terapkan Crop</button>
@@ -775,12 +933,6 @@ export function ChesterStudio() {
             <p className="text-xs text-gray-500 mt-2">Drag area, resize via handle. Klik Terapkan untuk memotong.</p>
           </Panel>
 
-          <Panel title="Auto Select" tone="blue">
-            <button onClick={() => setAutoSelectOn((v) => !v)} className={`w-full py-2 rounded text-white ${autoSelectOn ? "bg-blue-700" : "bg-blue-600"}`}>{autoSelectOn ? "Nonaktifkan" : "Aktifkan"} Auto Select</button>
-            <button onClick={resetPoints} className="w-full bg-gray-600 text-white py-1 rounded text-sm mt-1">Reset Titik ({autoPoints.length})</button>
-          </Panel>
-
-          {/* Panel Background dengan perbaikan */}
           <Panel title="Background">
             <select value={bgMode} onChange={(e) => setBgMode(e.target.value as any)} className="w-full p-2 border rounded text-sm">
               <option value="color">Warna</option>
@@ -816,6 +968,7 @@ export function ChesterStudio() {
 
         {/* Main Canvas */}
         <div className="flex-1 p-5 flex flex-col items-center">
+          <div className="mb-2 text-sm text-gray-500">Canvas Utama (Edit & Preview)</div>
           {!hasImage && (
             <div onDrop={onDrop} onDragOver={(e) => e.preventDefault()}
               onClick={() => document.getElementById("imageInput")?.click()}
@@ -831,18 +984,7 @@ export function ChesterStudio() {
             <div className="relative inline-block rounded-lg overflow-hidden" style={{ background: "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)", backgroundSize: "20px 20px", backgroundPosition: "0 0,0 10px,10px -10px,-10px 0px" }}>
               <canvas ref={canvasRef} className="rounded-lg shadow-md max-w-full block" style={{ maxWidth: "min(800px,90vw)" }} />
               
-              {/* Mask canvas (Auto Select) */}
-              <canvas
-                ref={maskRef}
-                className="absolute inset-0 w-full h-full"
-                style={{
-                  pointerEvents: !cropMode && autoSelectOn ? "auto" : "none",
-                  cursor: !cropMode && autoSelectOn ? "crosshair" : "default"
-                }}
-                onClick={autoSelectClick}
-              />
-              
-              {/* Crop overlay canvas (interaktif) */}
+              {/* Crop overlay */}
               <canvas
                 ref={cropOverlayRef}
                 className="absolute inset-0 w-full h-full"
@@ -856,7 +998,7 @@ export function ChesterStudio() {
                 onMouseLeave={endCropDrag}
               />
               
-              {/* Before/after dimmer overlay */}
+              {/* Before/after overlay (tapi kita tidak punya beforeAfter, mungkin tetap dipertahankan) */}
               {imgEl && beforeAfter < 100 && (
                 <img src={imgEl.src} alt="before" className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   style={{ clipPath: `inset(0 0 0 ${beforeAfter}%)` }} />
@@ -887,7 +1029,7 @@ export function ChesterStudio() {
 }
 
 function Panel({ title, tone, children }: { title: string; tone?: string; children: React.ReactNode }) {
-  const bg = tone === "pink" ? "bg-pink-50" : tone === "orange" ? "bg-orange-50" : tone === "red" ? "bg-red-50" : tone === "blue" ? "bg-blue-50" : tone === "indigo" ? "bg-indigo-50" : tone === "green" ? "bg-emerald-50" : "bg-white";
+  const bg = tone === "pink" ? "bg-pink-50" : tone === "orange" ? "bg-orange-50" : tone === "red" ? "bg-red-50" : tone === "blue" ? "bg-blue-50" : tone === "indigo" ? "bg-indigo-50" : tone === "green" ? "bg-emerald-50" : tone === "purple" ? "bg-purple-50" : "bg-white";
   return (
     <div className={`${bg} p-3 rounded-xl shadow-sm`}>
       <div className="text-sm mb-2">{title}</div>
